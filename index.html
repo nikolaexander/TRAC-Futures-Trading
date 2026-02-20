@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRAC FUTURES — P2P Trading Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050a0f;
+    --surface: #0a1520;
+    --border: #1a3040;
+    --accent: #00e5ff;
+    --green: #00ff88;
+    --red: #ff3355;
+    --yellow: #ffd600;
+    --text: #c8dde8;
+    --muted: #4a6a7a;
+    --glow: 0 0 20px rgba(0,229,255,0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image: 
+      radial-gradient(ellipse at 10% 20%, rgba(0,100,150,0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 90% 80%, rgba(0,229,255,0.05) 0%, transparent 50%);
+  }
+
+  /* SCANLINE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.05) 2px,
+      rgba(0,0,0,0.05) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,10,15,0.9);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(0,229,255,0.6);
+  }
+  .logo span { color: var(--yellow); }
+
+  .header-info {
+    display: flex;
+    gap: 24px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+  }
+
+  .stat-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .stat-pill .label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-pill .value { color: var(--accent); font-size: 14px; }
+  .stat-pill .value.green { color: var(--green); }
+  .stat-pill .value.red { color: var(--red); }
+
+  .ticker-bar {
+    background: rgba(0,229,255,0.05);
+    border-bottom: 1px solid var(--border);
+    padding: 6px 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .ticker-inner {
+    display: inline-block;
+    animation: ticker 25s linear infinite;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .ticker-inner .up { color: var(--green); }
+  .ticker-inner .dn { color: var(--red); }
+
+  @keyframes ticker {
+    0% { transform: translateX(100vw); }
+    100% { transform: translateX(-100%); }
+  }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    grid-template-rows: auto auto;
+    gap: 16px;
+    padding: 20px 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* CHART AREA */
+  .chart-panel {
+    grid-column: 1;
+    grid-row: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .pair-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: #fff;
+  }
+
+  .price-display {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 32px;
+    color: var(--green);
+    text-shadow: 0 0 20px rgba(0,255,136,0.4);
+    transition: color 0.3s;
+  }
+
+  .price-change {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    color: var(--green);
+    margin-left: 12px;
+  }
+
+  #chartCanvas {
+    width: 100%;
+    height: 280px;
+    display: block;
+  }
+
+  .chart-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .tf-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .tf-btn.active, .tf-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,229,255,0.08);
+  }
+
+  /* POSITIONS TABLE */
+  .positions-panel {
+    grid-column: 1;
+    grid-row: 2;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+  }
+
+  .panel-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+  }
+
+  th {
+    text-align: left;
+    color: var(--muted);
+    padding: 6px 8px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 8px 8px;
+    border-bottom: 1px solid rgba(26,48,64,0.5);
+  }
+
+  tr:hover td { background: rgba(0,229,255,0.03); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .badge.long { background: rgba(0,255,136,0.15); color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+  .badge.short { background: rgba(255,51,85,0.15); color: var(--red); border: 1px solid rgba(255,51,85,0.3); }
+
+  .close-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--red);
+    padding: 3px 10px;
+    font-size: 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    font-family: 'Share Tech Mono', monospace;
+    transition: all 0.2s;
+  }
+  .close-btn:hover { background: rgba(255,51,85,0.15); border-color: var(--red); }
+
+  /* TRADE PANEL */
+  .trade-panel {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .balance-box {
+    background: rgba(0,229,255,0.05);
+    border: 1px solid rgba(0,229,255,0.15);
+    border-radius: 4px;
+    padding: 14px;
+    text-align: center;
+  }
+
+  .balance-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-family: 'Share Tech Mono', monospace;
+    margin-bottom: 4px;
+  }
+
+  .balance-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    color: var(--yellow);
+    letter-spacing: 2px;
+    text-shadow: 0 0 20px rgba(255,214,0,0.3);
+  }
+
+  .balance-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+    margin-top: 2px;
+  }
+
+  /* TABS */
+  .tab-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .tab-btn {
+    background: transparent;
+    border: none;
+    padding: 10px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--muted);
+  }
+
+  .tab-btn.long-tab.active {
+    background: rgba(0,255,136,0.12);
+    color: var(--green);
+  }
+
+  .tab-btn.short-tab.active {
+    background: rgba(255,51,85,0.12);
+    color: var(--red);
+  }
+
+  .tab-btn:hover { opacity: 0.8; }
+
+  /* FORM */
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .form-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-family: 'Share Tech Mono', monospace;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .form-input {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid var(--border);
+    color: #fff;
+    padding: 10px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    border-radius: 2px;
+    width: 100%;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  .form-input:focus { border-color: var(--accent); }
+
+  /* LEVERAGE SLIDER */
+  .lev-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    color: var(--yellow);
+    text-align: center;
+    text-shadow: 0 0 15px rgba(255,214,0,0.3);
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--yellow);
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255,214,0,0.5);
+    transition: transform 0.1s;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+  .lev-ticks {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ORDER PREVIEW */
+  .order-preview {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+  }
+
+  .preview-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    color: var(--muted);
+  }
+
+  .preview-row .val { color: var(--text); }
+  .preview-row .val.highlight { color: var(--accent); }
+
+  /* SUBMIT BUTTON */
+  .submit-btn {
+    width: 100%;
+    padding: 14px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 3px;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .submit-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.1);
+    transform: translateX(-100%);
+    transition: transform 0.3s;
+  }
+
+  .submit-btn:hover::before { transform: translateX(0); }
+
+  .submit-btn.long {
+    background: linear-gradient(135deg, #00cc6e, #00ff88);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,255,136,0.3);
+  }
+
+  .submit-btn.short {
+    background: linear-gradient(135deg, #cc1a33, #ff3355);
+    color: #fff;
+    box-shadow: 0 0 20px rgba(255,51,85,0.3);
+  }
+
+  .submit-btn:active { transform: scale(0.98); }
+
+  /* P2P FEED */
+  .feed-panel {
+    grid-column: 2;
+    display: none; /* inside trade-panel via flex */
+  }
+
+  .feed-box {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    height: 140px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+
+  .feed-box::-webkit-scrollbar { width: 3px; }
+  .feed-box::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .feed-item {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(26,48,64,0.3);
+    display: flex;
+    gap: 8px;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .feed-item .ts { color: rgba(74,106,122,0.6); }
+  .feed-item .agent { color: var(--accent); }
+  .feed-item .action.buy { color: var(--green); }
+  .feed-item .action.sell { color: var(--red); }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    padding: 14px 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    border-radius: 4px;
+    box-shadow: var(--glow);
+    transform: translateX(200%);
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 1000;
+    max-width: 300px;
+  }
+
+  .toast.show { transform: translateX(0); }
+  .toast .toast-title { color: var(--accent); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+
+  /* PnL FLASH */
+  @keyframes flash-green {
+    0% { background: rgba(0,255,136,0.2); }
+    100% { background: transparent; }
+  }
+  @keyframes flash-red {
+    0% { background: rgba(255,51,85,0.2); }
+    100% { background: transparent; }
+  }
+
+  .flash-green { animation: flash-green 0.5s ease; }
+  .flash-red { animation: flash-red 0.5s ease; }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; }
+    .trade-panel { grid-column: 1; }
+    .positions-panel { grid-column: 1; }
+  }
+
+  /* LEADERBOARD */
+  .lb-panel {
+    grid-column: 1 / 3;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    margin-top: 0;
+  }
+
+  .lb-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+  }
+
+  .lb-card {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    text-align: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    transition: border-color 0.2s;
+  }
+
+  .lb-card:hover { border-color: var(--accent); }
+
+  .lb-card .rank {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    color: var(--muted);
+  }
+
+  .lb-card:first-child .rank { color: var(--yellow); }
+
+  .lb-card .trader { color: var(--accent); margin: 4px 0; }
+  .lb-card .pnl { color: var(--green); font-size: 13px; }
+  .lb-card .trades { color: var(--muted); font-size: 10px; }
+
+  .empty-pos {
+    text-align: center;
+    padding: 24px;
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+  }
+
+  .intercom-badge {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .intercom-badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">TRAC <span>FUTURES</span></div>
+  <div class="intercom-badge">
+    <div class="dot"></div>
+    Intercom P2P Network · 12 agents online
+  </div>
+  <div class="header-info">
+    <div class="stat-pill">
+      <span class="label">24h Vol</span>
+      <span class="value" id="vol24h">2,847,290 TNK</span>
+    </div>
+    <div class="stat-pill">
+      <span class="label">Open Interest</span>
+      <span class="value">941,330 TNK</span>
+    </div>
+    <div class="stat-pill">
+      <span class="label">Funding</span>
+      <span class="value green" id="fundRate">+0.0100%</span>
+    </div>
+  </div>
+</header>
+
+<div class="ticker-bar">
+  <div class="ticker-inner" id="tickerInner"></div>
+</div>
+
+<div class="main">
+
+  <!-- CHART -->
+  <div class="chart-panel">
+    <div class="panel-header">
+      <div>
+        <div class="pair-name">TRAC / USDT PERP</div>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+          <span class="price-display" id="currentPrice">0.0000</span>
+          <span class="price-change" id="priceChange">+0.00%</span>
+        </div>
+      </div>
+      <div class="chart-controls">
+        <button class="tf-btn active" onclick="setTF(this,'1m')">1M</button>
+        <button class="tf-btn" onclick="setTF(this,'5m')">5M</button>
+        <button class="tf-btn" onclick="setTF(this,'15m')">15M</button>
+        <button class="tf-btn" onclick="setTF(this,'1h')">1H</button>
+      </div>
+    </div>
+    <canvas id="chartCanvas"></canvas>
+  </div>
+
+  <!-- TRADE PANEL -->
+  <div class="trade-panel">
+    <div class="balance-box">
+      <div class="balance-label">Available Balance</div>
+      <div class="balance-value" id="balanceDisplay">10,000</div>
+      <div class="balance-sub">TNK · Paper Trading</div>
+    </div>
+
+    <div class="tab-row">
+      <button class="tab-btn long-tab active" onclick="setDirection('long', this)">▲ LONG</button>
+      <button class="tab-btn short-tab" onclick="setDirection('short', this)">▼ SHORT</button>
+    </div>
+
+    <div class="form-group">
+      <div class="form-label">
+        <span>Amount (TNK)</span>
+        <span id="amtPercent">25%</span>
+      </div>
+      <input class="form-input" type="number" id="amtInput" value="250" min="10" max="10000" step="10" oninput="updatePreview()">
+      <div style="display:flex; gap:4px; margin-top:4px;">
+        <button class="tf-btn" style="flex:1; font-size:10px;" onclick="setPct(0.25)">25%</button>
+        <button class="tf-btn" style="flex:1; font-size:10px;" onclick="setPct(0.5)">50%</button>
+        <button class="tf-btn" style="flex:1; font-size:10px;" onclick="setPct(0.75)">75%</button>
+        <button class="tf-btn" style="flex:1; font-size:10px;" onclick="setPct(1)">MAX</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <div class="form-label">
+        <span>Leverage</span>
+        <span>Max 50x</span>
+      </div>
+      <div class="lev-display" id="levDisplay">10x</div>
+      <input type="range" id="levSlider" min="1" max="50" value="10" oninput="updateLev(this.value)">
+      <div class="lev-ticks">
+        <span>1x</span><span>10x</span><span>20x</span><span>30x</span><span>50x</span>
+      </div>
+    </div>
+
+    <div class="order-preview">
+      <div class="preview-row"><span>Entry Price</span><span class="val" id="prevEntry">—</span></div>
+      <div class="preview-row"><span>Position Size</span><span class="val highlight" id="prevSize">—</span></div>
+      <div class="preview-row"><span>Liq. Price</span><span class="val" id="prevLiq" style="color:var(--red)">—</span></div>
+      <div class="preview-row"><span>Est. Fee (0.05%)</span><span class="val" id="prevFee">—</span></div>
+    </div>
+
+    <button class="submit-btn long" id="submitBtn" onclick="openPosition()">OPEN LONG</button>
+
+    <div>
+      <div class="panel-title">P2P INTERCOM FEED</div>
+      <div class="feed-box" id="feedBox"></div>
+    </div>
+  </div>
+
+  <!-- POSITIONS -->
+  <div class="positions-panel">
+    <div class="panel-title">Open Positions</div>
+    <div id="positionsContainer">
+      <div class="empty-pos">No open positions · Place your first trade above</div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div class="lb-panel">
+    <div class="panel-title">Agent Leaderboard · Top PnL (Paper)</div>
+    <div class="lb-grid" id="lbGrid"></div>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-title" id="toastTitle">Trade Executed</div>
+  <div id="toastBody"></div>
+</div>
+
+<script>
+// ============================================================
+//  STATE
+// ============================================================
+let balance = 10000;
+let positions = [];
+let priceHistory = [];
+let currentPrice = 0.0412;
+let direction = 'long';
+let posIdCounter = 1;
+let animFrame;
+
+// ============================================================
+//  CHART
+// ============================================================
+const canvas = document.getElementById('chartCanvas');
+const ctx = canvas.getContext('2d');
+const CANDLES = 80;
+
+function initPriceHistory() {
+  let p = currentPrice;
+  priceHistory = [];
+  for (let i = 0; i < CANDLES; i++) {
+    const vol = p * 0.018;
+    const o = p;
+    const c = p + (Math.random() - 0.49) * vol;
+    const h = Math.max(o, c) + Math.random() * vol * 0.5;
+    const l = Math.min(o, c) - Math.random() * vol * 0.5;
+    priceHistory.push({ o, h, l, c });
+    p = c;
+  }
+  currentPrice = p;
+}
+
+function drawChart() {
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  canvas.width = W;
+  canvas.height = H;
+
+  const pad = { top: 20, right: 60, bottom: 30, left: 10 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // grid
+  ctx.strokeStyle = 'rgba(26,48,64,0.5)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (ch / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+  }
+
+  const all = priceHistory;
+  const minP = Math.min(...all.map(c => c.l)) * 0.998;
+  const maxP = Math.max(...all.map(c => c.h)) * 1.002;
+  const range = maxP - minP;
+
+  const scaleY = v => pad.top + ch - ((v - minP) / range) * ch;
+  const cWidth = Math.floor(cw / all.length) - 1;
+  const gap = cw / all.length;
+
+  // draw area under close
+  ctx.beginPath();
+  all.forEach((c, i) => {
+    const x = pad.left + i * gap + gap / 2;
+    const y = scaleY(c.c);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(pad.left + (all.length - 1) * gap + gap / 2, pad.top + ch);
+  ctx.lineTo(pad.left, pad.top + ch);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
+  grad.addColorStop(0, 'rgba(0,229,255,0.07)');
+  grad.addColorStop(1, 'rgba(0,229,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // candles
+  all.forEach((c, i) => {
+    const x = pad.left + i * gap + gap / 2;
+    const bull = c.c >= c.o;
+    const color = bull ? '#00ff88' : '#ff3355';
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+
+    const oh = scaleY(Math.max(c.o, c.c));
+    const ol = scaleY(Math.min(c.o, c.c));
+    const bh = Math.max(ol - oh, 1);
+
+    // wick
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, scaleY(c.h));
+    ctx.lineTo(x, scaleY(c.l));
+    ctx.stroke();
+
+    // body
+    if (cWidth >= 2) {
+      ctx.fillRect(x - cWidth / 2, oh, cWidth, bh);
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x, oh);
+      ctx.lineTo(x, ol);
+      ctx.stroke();
+    }
+  });
+
+  // price labels right axis
+  ctx.fillStyle = 'rgba(74,106,122,0.8)';
+  ctx.font = '10px Share Tech Mono';
+  ctx.textAlign = 'left';
+  for (let i = 0; i <= 4; i++) {
+    const v = minP + (range / 4) * (4 - i);
+    const y = pad.top + (ch / 4) * i;
+    ctx.fillText(v.toFixed(4), W - pad.right + 4, y + 4);
+  }
+
+  // current price line
+  const cpY = scaleY(currentPrice);
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = 'rgba(0,229,255,0.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad.left, cpY);
+  ctx.lineTo(W - pad.right, cpY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // positions lines
+  positions.forEach(pos => {
+    const y = scaleY(pos.entryPrice);
+    ctx.setLineDash([3, 6]);
+    ctx.strokeStyle = pos.dir === 'long' ? 'rgba(0,255,136,0.4)' : 'rgba(255,51,85,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right - 2, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+}
+
+// ============================================================
+//  PRICE SIMULATION
+// ============================================================
+function tickPrice() {
+  const vol = currentPrice * 0.008;
+  const drift = (Math.random() - 0.49) * vol;
+  const newPrice = Math.max(0.001, currentPrice + drift);
+
+  const lastCandle = priceHistory[priceHistory.length - 1];
+  lastCandle.c = newPrice;
+  lastCandle.h = Math.max(lastCandle.h, newPrice);
+  lastCandle.l = Math.min(lastCandle.l, newPrice);
+
+  if (Math.random() < 0.08) {
+    priceHistory.push({ o: newPrice, h: newPrice, l: newPrice, c: newPrice });
+    if (priceHistory.length > CANDLES) priceHistory.shift();
+  }
+
+  const prevPrice = priceHistory[priceHistory.length - 2]?.c || currentPrice;
+  currentPrice = newPrice;
+
+  // update UI
+  const changeEl = document.getElementById('priceChange');
+  const pctChange = ((currentPrice - prevPrice) / prevPrice) * 100;
+  const priceEl = document.getElementById('currentPrice');
+  priceEl.textContent = currentPrice.toFixed(4);
+  priceEl.style.color = currentPrice >= prevPrice ? 'var(--green)' : 'var(--red)';
+  changeEl.textContent = (pctChange >= 0 ? '+' : '') + pctChange.toFixed(4) + '%';
+  changeEl.style.color = pctChange >= 0 ? 'var(--green)' : 'var(--red)';
+
+  updatePreview();
+  updatePositionsPnl();
+  drawChart();
+}
+
+// ============================================================
+//  POSITION MANAGEMENT
+// ============================================================
+function openPosition() {
+  const amt = parseFloat(document.getElementById('amtInput').value) || 0;
+  const lev = parseInt(document.getElementById('levSlider').value);
+  const fee = amt * 0.0005;
+  const total = amt + fee;
+
+  if (amt < 10) return showToast('ERROR', 'Minimum order: 10 TNK');
+  if (total > balance) return showToast('ERROR', 'Insufficient balance');
+
+  const liqPct = direction === 'long' ? (1 / lev) * 0.9 : (1 / lev) * 0.9;
+  const liqPrice = direction === 'long'
+    ? currentPrice * (1 - liqPct)
+    : currentPrice * (1 + liqPct);
+
+  const pos = {
+    id: posIdCounter++,
+    dir: direction,
+    entryPrice: currentPrice,
+    amount: amt,
+    leverage: lev,
+    size: amt * lev,
+    liqPrice,
+    fee,
+    openTime: Date.now()
+  };
+
+  positions.push(pos);
+  balance = Math.round((balance - total) * 10000) / 10000;
+  updateBalanceDisplay();
+  renderPositions();
+  updatePreview();
+
+  showToast(
+    direction === 'long' ? '▲ LONG OPENED' : '▼ SHORT OPENED',
+    `${amt} TNK @ ${currentPrice.toFixed(4)} · ${lev}x leverage`
+  );
+}
+
+function closePosition(id) {
+  const idx = positions.findIndex(p => p.id === id);
+  if (idx < 0) return;
+  const pos = positions[idx];
+
+  const pnl = calcPnl(pos);
+  const returned = pos.amount + pnl - pos.fee;
+  balance = Math.round((balance + returned) * 10000) / 10000;
+
+  positions.splice(idx, 1);
+  updateBalanceDisplay();
+  renderPositions();
+
+  showToast(
+    pnl >= 0 ? '✓ PROFIT TAKEN' : '✗ POSITION CLOSED',
+    `PnL: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} TNK`
+  );
+}
+
+function calcPnl(pos) {
+  const diff = currentPrice - pos.entryPrice;
+  const pct = diff / pos.entryPrice;
+  return pos.dir === 'long'
+    ? pct * pos.size
+    : -pct * pos.size;
+}
+
+function updatePositionsPnl() {
+  positions.forEach(pos => {
+    const el = document.getElementById(`pnl-${pos.id}`);
+    if (!el) return;
+    const pnl = calcPnl(pos);
+    const pct = (pnl / pos.amount) * 100;
+    el.textContent = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + ' TNK (' + (pnl >= 0 ? '+' : '') + pct.toFixed(1) + '%)';
+    el.style.color = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+
+    // liquidation check
+    if ((pos.dir === 'long' && currentPrice <= pos.liqPrice) ||
+        (pos.dir === 'short' && currentPrice >= pos.liqPrice)) {
+      positions.splice(positions.indexOf(pos), 1);
+      showToast('⚡ LIQUIDATED', `Position #${pos.id} was liquidated!`);
+      renderPositions();
+    }
+  });
+}
+
+function renderPositions() {
+  const container = document.getElementById('positionsContainer');
+  if (!positions.length) {
+    container.innerHTML = '<div class="empty-pos">No open positions · Place your first trade above</div>';
+    return;
+  }
+
+  const html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Direction</th>
+          <th>Entry</th>
+          <th>Size</th>
+          <th>Lev</th>
+          <th>Liq Price</th>
+          <th>PnL</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${positions.map(pos => `
+          <tr>
+            <td><span class="badge ${pos.dir}">${pos.dir.toUpperCase()}</span></td>
+            <td>${pos.entryPrice.toFixed(4)}</td>
+            <td>${pos.amount.toFixed(0)} TNK</td>
+            <td style="color:var(--yellow)">${pos.leverage}x</td>
+            <td style="color:var(--red)">${pos.liqPrice.toFixed(4)}</td>
+            <td id="pnl-${pos.id}" style="color:var(--green)">...</td>
+            <td><button class="close-btn" onclick="closePosition(${pos.id})">CLOSE</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.innerHTML = html;
+}
+
+// ============================================================
+//  UI CONTROLS
+// ============================================================
+function setDirection(dir, btn) {
+  direction = dir;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const sb = document.getElementById('submitBtn');
+  sb.className = 'submit-btn ' + dir;
+  sb.textContent = `OPEN ${dir.toUpperCase()}`;
+  updatePreview();
+}
+
+function updateLev(val) {
+  document.getElementById('levDisplay').textContent = val + 'x';
+  updatePreview();
+}
+
+function setPct(pct) {
+  const val = Math.floor(balance * pct / 10) * 10;
+  document.getElementById('amtInput').value = val;
+  document.getElementById('amtPercent').textContent = Math.round(pct * 100) + '%';
+  updatePreview();
+}
+
+function updatePreview() {
+  const amt = parseFloat(document.getElementById('amtInput').value) || 0;
+  const lev = parseInt(document.getElementById('levSlider').value);
+  const size = amt * lev;
+  const fee = amt * 0.0005;
+  const liqPct = (1 / lev) * 0.9;
+  const liqPrice = direction === 'long'
+    ? currentPrice * (1 - liqPct)
+    : currentPrice * (1 + liqPct);
+
+  document.getElementById('prevEntry').textContent = currentPrice.toFixed(4);
+  document.getElementById('prevSize').textContent = size.toFixed(0) + ' TNK';
+  document.getElementById('prevLiq').textContent = liqPrice.toFixed(4);
+  document.getElementById('prevFee').textContent = fee.toFixed(2) + ' TNK';
+}
+
+function updateBalanceDisplay() {
+  const el = document.getElementById('balanceDisplay');
+  el.textContent = balance.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function setTF(btn, tf) {
+  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  initPriceHistory();
+  drawChart();
+}
+
+// ============================================================
+//  TOAST
+// ============================================================
+function showToast(title, body) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastTitle').textContent = title;
+  document.getElementById('toastBody').textContent = body;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ============================================================
+//  TICKER
+// ============================================================
+const pairs = [
+  { sym: 'TRAC/USDT', p: 0.0412, ch: +2.34 },
+  { sym: 'BTC/USDT', p: 61240, ch: -0.87 },
+  { sym: 'ETH/USDT', p: 3180, ch: +1.12 },
+  { sym: 'SOL/USDT', p: 148.4, ch: +3.21 },
+  { sym: 'TNK/USDT', p: 0.00182, ch: +5.67 },
+];
+
+function buildTicker() {
+  const el = document.getElementById('tickerInner');
+  const items = pairs.map(p =>
+    `<span>${p.sym}: <b class="${p.ch >= 0 ? 'up' : 'dn'}">${p.ch >= 0 ? '▲' : '▼'} ${Math.abs(p.ch).toFixed(2)}%</b>&nbsp;&nbsp;&nbsp;</span>`
+  );
+  el.innerHTML = items.join(' ║ ') + ' ║ ' + items.join(' ║ ');
+}
+
+// ============================================================
+//  LEADERBOARD
+// ============================================================
+const agents = [
+  { name: 'Satoshi_Agent', pnl: 48200, trades: 312 },
+  { name: 'AlphaBot-7', pnl: 31500, trades: 228 },
+  { name: 'TracWhale', pnl: 22800, trades: 185 },
+  { name: 'P2PArbitrage', pnl: 14900, trades: 401 },
+  { name: 'NightOwlAI', pnl: 9340, trades: 97 },
+];
+
+function buildLeaderboard() {
+  const grid = document.getElementById('lbGrid');
+  grid.innerHTML = agents.map((a, i) => `
+    <div class="lb-card">
+      <div class="rank">#${i + 1}</div>
+      <div class="trader">${a.name}</div>
+      <div class="pnl">+${a.pnl.toLocaleString()} TNK</div>
+      <div class="trades">${a.trades} trades</div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+//  P2P INTERCOM FEED
+// ============================================================
+const agentNames = ['TracBot_01', 'AlphaSwarm', 'MktMaker', 'OrcaP2P', 'NightTradr'];
+const actions = ['LONG', 'SHORT', 'CLOSE'];
+
+function addFeedItem() {
+  const box = document.getElementById('feedBox');
+  const agent = agentNames[Math.floor(Math.random() * agentNames.length)];
+  const action = actions[Math.floor(Math.random() * actions.length)];
+  const amt = Math.floor(Math.random() * 500 + 50);
+  const lev = [1, 2, 3, 5, 10, 20][Math.floor(Math.random() * 6)];
+  const t = new Date().toTimeString().slice(0, 8);
+  const isBuy = action === 'LONG';
+
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  item.innerHTML = `
+    <span class="ts">${t}</span>
+    <span class="agent">${agent}</span>
+    <span class="action ${isBuy ? 'buy' : 'sell'}">${action}</span>
+    <span>${amt} TNK · ${lev}x</span>
+  `;
+
+  box.prepend(item);
+  while (box.children.length > 20) box.removeChild(box.lastChild);
+}
+
+// ============================================================
+//  INIT & LOOP
+// ============================================================
+initPriceHistory();
+buildTicker();
+buildLeaderboard();
+updatePreview();
+drawChart();
+
+// Resize
+window.addEventListener('resize', () => drawChart());
+
+// Tick loop
+setInterval(tickPrice, 800);
+setInterval(addFeedItem, 2500);
+</script>
+</body>
+</html>
